@@ -38,6 +38,7 @@ namespace YEAPI.Models
         public DbSet<YECashVersion> YECashVersions => Set<YECashVersion>();
         public DbSet<YECashTask> YECashTasks => Set<YECashTask>();
         public DbSet<YERestaurantBlockLog> YERestaurantBlockLogs => Set<YERestaurantBlockLog>();
+        public DbSet<YECancelCode> YECancelCodes => Set<YECancelCode>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

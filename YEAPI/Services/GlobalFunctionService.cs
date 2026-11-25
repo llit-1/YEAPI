@@ -22,45 +22,6 @@ namespace YEAPI.Services
             _rk7Service = rk7Service;
         }
 
-        // Код отмены Яндекса → наш DELETED
-        // (файл "Коды Отмен яндекса.xlsx")
-        private static readonly Dictionary<string, int> CancelDeletedCodes = new()
-        {
-            ["client.by_accident_order"] = 2,           
-            ["client.self.accidentally_placed_order"] = 2,
-            ["client.self.did_not_pay"] = 2,
-            ["client.by_accident_order_from_app"] = 2,
-            ["client.self.accidentally_placed_order_from_app"] = 2,
-            ["client.refused_order_changes"] = 3,
-            ["place.late"] = 3,
-            ["place.missing_dish"] = 3,
-            ["place.other_reason"] = 3,
-            ["place.other_reason_from_app"] = 3,
-            ["place.high_load"] = 3,
-            ["place.closed_early"] = 3,
-            ["place.unable_to_call"] = 3,
-            ["place.wrong_order"] = 3,
-            ["place.technical_problem"] = 4,
-            ["place.everyday_problem"] = 4,
-            ["place.integration_failed"] = 4,
-            ["service.other"] = 4,
-            ["place.state_of_emergency"] = 4,
-            ["place.integration_other_reason"] = 4,
-            ["service.test_connection"] = 5,
-            ["client_no_show"] = 10,
-            ["courier.late"] = 10,
-            ["courier.some_other_reason"] =10,
-            ["client.suspicious_activity"] = 10,
-            ["courier.not_found"] = 10,
-            ["client.some_other_reason"] = 10,
-            ["courier.refused_order"] = 10,
-            ["service.finalize.payment_to_partner"] = 10,
-            ["courier.cancellation_after_reassignment"] = 10,
-            ["client.changed_delivery_address"] = 10,
-            ["service.finalize.payment_to_partner_and_refund"] = 10,
-            ["service.recooking"] = 10
-        };
-
         public async Task<List<SALEOBJECTSAGREGATORS>> GetYandexSalesAsync(
             DateTime begin,
             DateTime end,
@@ -82,6 +43,12 @@ namespace YEAPI.Services
                     locationTypes.Contains(x.LOCATIONTYPEGUID.Value)
                     && x.ACTUAL == 1 && x.Delivery == 1)
                 .ToListAsync();
+
+            // Код отмены Яндекса → наш DELETED (справочник YECancelCodes в БД).
+            // Читаем на каждый запуск, чтобы новые коды подхватывались без рестарта.
+            var cancelDeletedCodes = await _db.YECancelCodes
+                .AsNoTracking()
+                .ToDictionaryAsync(x => x.Code, x => x.Deleted);
 
             var result = new List<SALEOBJECTSAGREGATORS>();
 
@@ -185,7 +152,7 @@ namespace YEAPI.Services
                             historyOrder.CancelReason?.Code;
 
                         // DELETED: доставлен — 0, отменён — по коду отмены
-                        // (CancelDeletedCodes), иначе — 1
+                        // (справочник YECancelCodes), иначе — 1
                         int deleted = 1;
 
                         if (order.Status == "DELIVERED")
@@ -194,7 +161,7 @@ namespace YEAPI.Services
                         }
 
                         else if (cancelCode != null &&
-                                 CancelDeletedCodes.TryGetValue(cancelCode, out var mapped))
+                                 cancelDeletedCodes.TryGetValue(cancelCode, out var mapped))
                         {
                             deleted = mapped;
                         }
