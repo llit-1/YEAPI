@@ -1,0 +1,6 @@
+@YEAPI_HostAddress = http://localhost:5167
+
+GET {{YEAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
