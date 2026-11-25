@@ -42,6 +42,62 @@ namespace YEAPI.Controllers
             return Ok(result);
         }
 
+        // GET api/Stop/logs?location={guid}&from=2026-11-01&to=2026-11-25
+        // Журнал постановки и снятия стопов по точке, новые записи первыми.
+        // from и to — даты создания записи включительно; по умолчанию последние 7 дней.
+        [HttpGet("logs")]
+        public async Task<ActionResult<List<StopLogDto>>> GetLogs(
+            [FromQuery] Guid location,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null)
+        {
+            const int maxRows = 1000;
+            if (location == Guid.Empty)
+                return BadRequest(new { Message = "Не указана торговая точка." });
+
+            var toDate = (to ?? DateTime.Today).Date;
+            var fromDate = (from ?? toDate.AddDays(-6)).Date;
+            if (fromDate > toDate)
+                return BadRequest(new { Message = "Начало периода позже его окончания." });
+
+            var toExclusive = toDate.AddDays(1);
+            var logs = await (
+                from log in _db.YEStoplogs.AsNoTracking()
+                where log.LocationGUID == location
+                    && log.Created >= fromDate
+                    && log.Created < toExclusive
+                join item in _db.YEItems.AsNoTracking() on log.Item equals item.Rkcode into items
+                from item in items.DefaultIfEmpty()
+                orderby log.Created descending, log.ID descending
+                select new StopLogDto(
+                    log.ID,
+                    log.LocationGUID,
+                    log.Item,
+                    item != null ? item.RkName : null,
+                    log.Begin,
+                    log.End,
+                    log.PermissionLevel,
+                    log.User,
+                    log.Created,
+                    log.Type))
+                .Take(maxRows)
+                .ToListAsync();
+
+            return Ok(logs);
+        }
+
+        public sealed record StopLogDto(
+            int Id,
+            Guid? Location,
+            int Item,
+            string? ItemName,
+            DateTime Begin,
+            DateTime End,
+            int PermissionLevel,
+            string User,
+            DateTime Created,
+            string Type);
+
         // POST api/Stop/
         [HttpPost]
         public async Task<ActionResult> Create(YEStopPack stopPack)
